@@ -2,7 +2,7 @@
 
 set -Eeuo pipefail
 
-IDENTITY=../../.ssh/raspberry-pi
+IDENTITY=~/.ssh/raspberry-pi
 URL=pi@raspberrypi.local
 JAR=raspberry-pi-1.0-SNAPSHOT.jar
 mvn package 
