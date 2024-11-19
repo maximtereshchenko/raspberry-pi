@@ -4,7 +4,7 @@ import com.diozero.api.I2CConstants;
 import com.diozero.internal.provider.builtin.i2c.NativeI2CDeviceSMBus;
 import com.diozero.sbc.DeviceFactoryHelper;
 
-final class ADS7830Device implements AutoCloseable {
+final class ADS7830Device {
 
     private final NativeI2CDeviceSMBus bus = new NativeI2CDeviceSMBus(
         DeviceFactoryHelper.getNativeDeviceFactory(),
@@ -14,11 +14,6 @@ final class ADS7830Device implements AutoCloseable {
         I2CConstants.AddressSize.SIZE_7,
         false
     );
-
-    @Override
-    public void close() {
-        bus.closeDevice();
-    }
 
     int analogRead(int inputPin) {
         return bus.readByteData(0x84 | (((inputPin << 2 | inputPin >> 1) & 0x07) << 4)) & 0xFF;
