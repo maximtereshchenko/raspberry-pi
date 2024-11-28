@@ -1,21 +1,13 @@
 package com.github.maximtereshchenko;
 
-import com.diozero.api.DigitalOutputDevice;
-
 import java.util.concurrent.TimeUnit;
 
 final class SevenSegmentDisplay {
 
     public static void main(String[] args) throws InterruptedException {
-        try (
-            var latch = new DigitalOutputDevice(27);
-            var clock = new DigitalOutputDevice(22);
-            var data = new DigitalOutputDevice(17)
-        ) {
+        try (var chip = new Chip74HC595(27, 22, 17)) {
             display(
-                latch,
-                clock,
-                data,
+                chip,
                 0b00000011, //0
                 0b10011110, //1.
                 0b00100101, //2
@@ -30,22 +22,10 @@ final class SevenSegmentDisplay {
         }
     }
 
-    private static void display(DigitalOutputDevice latch, DigitalOutputDevice clock, DigitalOutputDevice data, int... bitMasks) throws InterruptedException {
+    private static void display(Chip74HC595 chip, int... bitMasks) throws InterruptedException {
         for (var bitMask : bitMasks) {
-            output(latch, clock, data, bitMask);
+            chip.output(bitMask);
             TimeUnit.SECONDS.sleep(1);
         }
-    }
-
-    private static void output(DigitalOutputDevice latch, DigitalOutputDevice clock, DigitalOutputDevice data, int value) {
-        int remaining = value;
-        latch.off();
-        for (var i = 0; i < 8; i++) {
-            clock.off();
-            data.setOn((remaining & 1) == 1);
-            clock.on();
-            remaining = remaining >> 1;
-        }
-        latch.on();
     }
 }
