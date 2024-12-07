@@ -17,9 +17,10 @@ final class FlowingWaterLight2 {
     private static void flow(Chip74HC595 chip, int first, IntUnaryOperator next) throws InterruptedException {
         var current = first;
         for (var i = 0; i < 8; i++) {
-            chip.output(current);
-            current = next.applyAsInt(current);
+            chip.shift(current);
+            chip.output();
             TimeUnit.MILLISECONDS.sleep(100);
+            current = next.applyAsInt(current);
         }
     }
 }

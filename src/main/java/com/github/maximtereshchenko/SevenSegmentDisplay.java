@@ -24,7 +24,8 @@ final class SevenSegmentDisplay {
 
     private static void display(Chip74HC595 chip, int... bitMasks) throws InterruptedException {
         for (var bitMask : bitMasks) {
-            chip.output(bitMask);
+            chip.shift(bitMask);
+            chip.output();
             TimeUnit.SECONDS.sleep(1);
         }
     }

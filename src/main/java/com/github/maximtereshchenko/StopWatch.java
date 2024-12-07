@@ -46,7 +46,8 @@ final class StopWatch {
         void output(int value) {
             try {
                 for (var i = 0; i < digits.size(); i++) {
-                    chip.output(bitMask(Character.digit("%04d".formatted(value).charAt(i), 10)));
+                    chip.shift(bitMask(Character.digit("%04d".formatted(value).charAt(i), 10)));
+                    chip.output();
                     var digit = digits.get(i);
                     digit.on();
                     TimeUnit.MILLISECONDS.sleep(3);

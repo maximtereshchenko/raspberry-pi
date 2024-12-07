@@ -21,15 +21,18 @@ final class Chip74HC595 implements AutoCloseable {
         data.close();
     }
 
-    void output(int bitMask) {
-        int remaining = bitMask;
+    void shift(int bitMask) {
         latch.off();
+        int remaining = bitMask;
         for (var i = 0; i < 8; i++) {
             clock.off();
             data.setOn((remaining & 1) == 1);
             clock.on();
             remaining = remaining >> 1;
         }
+    }
+
+    void output() {
         latch.on();
     }
 }
