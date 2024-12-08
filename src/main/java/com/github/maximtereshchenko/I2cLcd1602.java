@@ -15,7 +15,6 @@ final class I2cLcd1602 {
             var deadline = Instant.now().plusSeconds(15);
             var formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
             while (Instant.now().isBefore(deadline)) {
-                lcd.clear();
                 lcd.write(Lcd1602.Position.FIRST_LINE, "CPU: %.2f C".formatted(cpuTemperature()));
                 lcd.write(Lcd1602.Position.SECOND_LINE, formatter.format(LocalTime.now()));
                 TimeUnit.SECONDS.sleep(1);

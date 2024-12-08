@@ -22,73 +22,114 @@ final class Lcd1602 implements AutoCloseable {
     static Lcd1602 newInstance() throws InterruptedException {
         var lcd = new Lcd1602();
         TimeUnit.MILLISECONDS.sleep(20);
-        lcd.sendCommand((byte) 0b00110000); //Function set (interface 8-bit length)
-        TimeUnit.MILLISECONDS.sleep(10);
-        lcd.sendCommand((byte) 0b00110000); //Function set (interface 8-bit length)
-        TimeUnit.MILLISECONDS.sleep(1);
-        lcd.sendCommand((byte) 0b00110000); //Function set (interface 8-bit length)
-        TimeUnit.MILLISECONDS.sleep(1);
-        lcd.sendCommand((byte) 0b00100000); //Function set (interface 4-bit length)
-        TimeUnit.MILLISECONDS.sleep(1);
-        lcd.sendCommand((byte) 0b00101000); //Function set (0010NFXX): N=1 - 2 lines, F=0 - 5x7 char size, XX=00 - font
-        TimeUnit.MILLISECONDS.sleep(1);
-        lcd.sendCommand((byte) 0b00001000); //Display switch on/off (00001DCB): D=0 - display off, C=0 - cursor off, B=0 - blink off
-        TimeUnit.MILLISECONDS.sleep(1);
-        lcd.clear();
-        lcd.sendCommand((byte) 0b00000110); //Set moving direction of the cursor (000001MS): M=1 - increment mode, S=0 - no shift
-        TimeUnit.MILLISECONDS.sleep(1);
-        lcd.sendCommand((byte) 0b00001100); //Display switch on/off (00001DCB): D=0 - display on, C=0 - cursor off, B=0 - blink off
-        TimeUnit.MILLISECONDS.sleep(1);
+        lcd.interfaceLength8Bit();
+        lcd.interfaceLength8Bit();
+        lcd.interfaceLength8Bit();
+        lcd.interfaceLength4Bit();
+        lcd.enable2Lines5width7heightCharacters();
+        lcd.switchDisplay(false);
+        lcd.clearScreen();
+        lcd.configureCursor();
+        lcd.switchDisplay(true);
         return lcd;
     }
 
     @Override
     public void close() throws InterruptedException {
-        clear();
+        clearScreen();
     }
 
-    void write(Position position, String line) throws InterruptedException {
+    void write(Position position, String data) throws InterruptedException {
         moveCursor(position);
-        for (var i = 0; i < line.length(); i++) {
-            sendData((byte) line.charAt(i));
+        for (var i = 0; i < data.length(); i++) {
+            writeData(data.charAt(i));
         }
     }
 
-    void clear() throws InterruptedException {
-        sendCommand((byte) 0b00000001); //Clear screen
-        TimeUnit.MILLISECONDS.sleep(2);
+    void clearScreen() throws InterruptedException {
+        writeCommand(0b00000001);
+    }
+
+    private void interfaceLength8Bit() throws InterruptedException {
+        writeCommand(0b00110000);
+    }
+
+    private void interfaceLength4Bit() throws InterruptedException {
+        writeCommand(0b00100000);
+    }
+
+    private void enable2Lines5width7heightCharacters() throws InterruptedException {
+        //Function set (0010NFXX): N=1 - 2 lines, F=0 - 5x7 char size, XX=00 - font
+        writeCommand(0b00101000);
+    }
+
+    private void switchDisplay(boolean enable) throws InterruptedException {
+        //Display switch on/off (00001DCB): D=0 - display off, C=0 - cursor off, B=0 - blink off
+        var command = 0b00001000;
+        if (enable) {
+            command |= 0b100;
+        }
+        writeCommand(command);
+    }
+
+    private void configureCursor() throws InterruptedException {
+        //Set moving direction of the cursor (000001MS): M=1 - increment mode, S=0 - no shift
+        writeCommand(0b00000110);
     }
 
     private void moveCursor(Position position) throws InterruptedException {
-        switch (position) {
-            case FIRST_LINE -> sendCommand((byte) 0b10000000); //Set display data RAM address counter (1L00XXXX): L=0 - first line, XXXX=0 - column 0
-            case SECOND_LINE -> sendCommand((byte) 0b11000000);
+        writeCommand(
+            switch (position) {
+                //Set display data RAM address counter (1L00XXXX): L=0 - first line, XXXX=0 - column 0
+                case FIRST_LINE -> 0b10000000;
+                case SECOND_LINE -> 0b11000000;
+            }
+        );
+    }
+
+    private void writeCommand(int data) throws InterruptedException {
+        writeByte(PayloadType.COMMAND, data, 15);
+    }
+
+    private void writeData(int data) throws InterruptedException {
+        writeByte(PayloadType.DATA, data, 1);
+    }
+
+    private void writeByte(PayloadType type, int data, int sleepMilliseconds) throws InterruptedException {
+        var upperBits = data & 0xF0;
+        var lowerBits = (data << 4) & 0xF0;
+        var firstPacketCommandBits = commandBits(type, Packet.FIRST);
+        var secondPacketCommandBits = commandBits(type, Packet.SECOND);
+        bus.writeBytes(
+            (byte) (upperBits | firstPacketCommandBits),
+            (byte) (upperBits | secondPacketCommandBits),
+            (byte) (lowerBits | firstPacketCommandBits),
+            (byte) (lowerBits | secondPacketCommandBits)
+        );
+        TimeUnit.MILLISECONDS.sleep(sleepMilliseconds);
+    }
+
+    private int commandBits(PayloadType type, Packet bits) {
+        //Command bits BL EN RW RS: BL=1 - enable background light, EN=1 - first half of the command, RW=0 - write mode, RS=0 - command mode
+        var commandBits = 0b1000;
+        if (type == PayloadType.DATA) {
+            commandBits |= 1;
         }
-        TimeUnit.MILLISECONDS.sleep(1);
-    }
-
-    private void sendCommand(byte command) {
-        var upperCommandBits = command & 0xF0;
-        var lowerCommandBits = (command << 4) & 0xF0;
-        var firstPacket = (byte) (upperCommandBits | 0b1100); //Command bits BL EN RW RS: RS=0 - command mode, RW=0 - write mode, EN=1 - first half of the command, BL=1 - enable background light
-        var secondPacket = (byte) (upperCommandBits | 0b1000);
-        var thirdPacket = (byte) (lowerCommandBits | 0b1100);
-        var fourthPacket = (byte) (lowerCommandBits | 0b1000);
-        bus.writeBytes(firstPacket, secondPacket, thirdPacket, fourthPacket);
-    }
-
-    private void sendData(byte data) throws InterruptedException {
-        var upperCommandBits = data & 0xF0;
-        var lowerCommandBits = (data << 4) & 0xF0;
-        var firstPacket = (byte) (upperCommandBits | 0b1101); //Command bits BL EN RW RS: RS=1 - data mode, RW=0 - write mode, EN=1 - first half of the command, BL=1 - enable background light
-        var secondPacket = (byte) (upperCommandBits | 0b1001);
-        var thirdPacket = (byte) (lowerCommandBits | 0b1101);
-        var fourthPacket = (byte) (lowerCommandBits | 0b1001);
-        bus.writeBytes(firstPacket, secondPacket, thirdPacket, fourthPacket);
-        TimeUnit.MILLISECONDS.sleep(1);
+        if (bits == Packet.FIRST) {
+            commandBits |= 0b100;
+        }
+        return commandBits;
     }
 
     enum Position {
         FIRST_LINE, SECOND_LINE
+    }
+
+    private enum PayloadType {
+        COMMAND, DATA
+    }
+
+    private enum Packet {
+        FIRST, SECOND
     }
 }
