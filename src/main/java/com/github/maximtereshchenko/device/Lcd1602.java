@@ -37,6 +37,7 @@ public final class Lcd1602 implements AutoCloseable {
     @Override
     public void close() throws InterruptedException {
         clearScreen();
+        switchDisplay(false);
     }
 
     public void write(Position position, String data) throws InterruptedException {
@@ -63,13 +64,13 @@ public final class Lcd1602 implements AutoCloseable {
         writeCommand(0b00101000);
     }
 
-    private void switchDisplay(boolean enable) throws InterruptedException {
+    public void switchDisplay(boolean enable) throws InterruptedException {
         //Display switch on/off (00001DCB): D=0 - display off, C=0 - cursor off, B=0 - blink off
         var command = 0b00001000;
         if (enable) {
             command |= 0b100;
         }
-        writeCommand(command);
+        writeCommand(command, enable);
     }
 
     private void configureCursor() throws InterruptedException {
@@ -88,18 +89,22 @@ public final class Lcd1602 implements AutoCloseable {
     }
 
     private void writeCommand(int data) throws InterruptedException {
-        writeByte(PayloadType.COMMAND, data, 15);
+        writeCommand(data, true);
+    }
+
+    private void writeCommand(int data, boolean enableBacklight) throws InterruptedException {
+        writeByte(PayloadType.COMMAND, data, enableBacklight, 15);
     }
 
     private void writeData(int data) throws InterruptedException {
-        writeByte(PayloadType.DATA, data, 1);
+        writeByte(PayloadType.DATA, data, true, 1);
     }
 
-    private void writeByte(PayloadType type, int data, int sleepMilliseconds) throws InterruptedException {
+    private void writeByte(PayloadType type, int data, boolean enableBacklight, int sleepMilliseconds) throws InterruptedException {
         var upperBits = data & 0xF0;
         var lowerBits = (data << 4) & 0xF0;
-        var firstPacketCommandBits = commandBits(type, Packet.FIRST);
-        var secondPacketCommandBits = commandBits(type, Packet.SECOND);
+        var firstPacketCommandBits = commandBits(type, Packet.FIRST, enableBacklight);
+        var secondPacketCommandBits = commandBits(type, Packet.SECOND, enableBacklight);
         bus.writeBytes(
             (byte) (upperBits | firstPacketCommandBits),
             (byte) (upperBits | secondPacketCommandBits),
@@ -109,14 +114,17 @@ public final class Lcd1602 implements AutoCloseable {
         TimeUnit.MILLISECONDS.sleep(sleepMilliseconds);
     }
 
-    private int commandBits(PayloadType type, Packet bits) {
+    private int commandBits(PayloadType type, Packet bits, boolean enableBacklight) {
         //Command bits BL EN RW RS: BL=1 - enable background light, EN=1 - first half of the command, RW=0 - write mode, RS=0 - command mode
-        var commandBits = 0b1000;
+        var commandBits = 0;
         if (type == PayloadType.DATA) {
             commandBits |= 1;
         }
         if (bits == Packet.FIRST) {
             commandBits |= 0b100;
+        }
+        if (enableBacklight) {
+            commandBits |= 0b1000;
         }
         return commandBits;
     }
